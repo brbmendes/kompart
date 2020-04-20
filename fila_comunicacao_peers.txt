@@ -1,8 +1,4 @@
-21:25:27	 From  Matheus Lima Ferreira : if(!recebido.contains("/")) {
-					System.out.println("Received: "+recebido);
-				} else if (recebido.contains("/"+ nickname)) {
-					System.out.println("Private message: "+ recebido);
-				}
+
 22:07:18	 From  Patrick Flores : Tenho uma duvida sobre o trabalho
 22:07:23	 From  Sérgio F. Johann : pode falar!
 22:07:40	 From  Patrick Flores : Um peer pode mandar recursos pra mais de 1 peer simultaneamente?
