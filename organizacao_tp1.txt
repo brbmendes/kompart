@@ -1,0 +1,35 @@
+TP1
+
+Sistema P2P basico
+
+Arquitetura centralizada (servidor)
+
+Um único programa, com 2 modos de operação (servidor e cliente)
+
+Inicializar
+kompart <ip> <type>"s(server) || c(client)"
+
+Comandos:
+"registry path-to-file/filename"
+"list files"
+"get file[]"
+"get all IP"
+
+Funcionamento dos comandos
+
+ao realizar o comando "registry path-to-file/filename", o client calcula o hash do arquivo e envia o nome completo (com caminho completo) e o hash do arquivo ao servidor
+
+list files
+servidor informa a lista de arquivos (nome/hash) em cada peer
+
+Estruturas para armazenamento:
+para servidor armazenar clientes:
+	hashmap<ip,peer>
+	
+	class peer
+		String nickname;
+        InetAddress endereco;
+		int porta;
+		int heartbeat;
+		hashmap<filename,hash>
+

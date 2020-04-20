@@ -1,0 +1,21 @@
+21:25:27	 From  Matheus Lima Ferreira : if(!recebido.contains("/")) {
+					System.out.println("Received: "+recebido);
+				} else if (recebido.contains("/"+ nickname)) {
+					System.out.println("Private message: "+ recebido);
+				}
+22:07:18	 From  Patrick Flores : Tenho uma duvida sobre o trabalho
+22:07:23	 From  Sérgio F. Johann : pode falar!
+22:07:40	 From  Patrick Flores : Um peer pode mandar recursos pra mais de 1 peer simultaneamente?
+22:08:25	 From  Sérgio F. Johann : queres dizer o seguinte: se um peer estiver passando um recurso a outro, pode um outro peer solicitar algum recurso, é isso?
+22:08:32	 From  Patrick Flores : isso
+22:08:44	 From  Sérgio F. Johann : não precisa...
+22:08:59	 From  Sérgio F. Johann : caso contrário, terias que utilizar 1 thread por peer.. acho que não é necessário
+22:09:17	 From  Patrick Flores : Nesse caso se ignora o Segundo pedido, ou faz uma fila de pedidos?
+22:09:18	 From  Sérgio F. Johann : digo, 1 thread por peer que solicita recursos
+22:09:39	 From  Sérgio F. Johann : faz uma fila de pedidos
+22:09:54	 From  Sérgio F. Johann : e mantem o cara que solicitou esperando
+22:10:05	 From  Patrick Flores : Ok
+22:10:24	 From  Patrick Flores : vlw sor
+22:13:09	 From  Patrick Flores : Pergntei justamente pois enviar varios simultaneous parecia bem mais complicado
+22:13:17	 From  Sérgio F. Johann : é sim!
+22:13:25	 From  Patrick Flores : a fila parece bem mais simples mesmo
