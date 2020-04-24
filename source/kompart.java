@@ -6,7 +6,8 @@ import java.util.*;
  
 public class kompart {
 	static Thread _threadHeartbeat;
-	static int _defaultHeartBeat;
+	static Thread _threadReceiveMessage;
+	static int _defaultHeartBeat = 10;
     
 	public static void main(String[] args) throws IOException {
 		if(args.length != 2){
@@ -56,11 +57,11 @@ public class kompart {
 				received = new String(packet.getData(), 0, packet.getLength());
 				address = packet.getAddress();
 				port = packet.getPort();
-
+				
 				// store text as array
 				String[] splittedReceived = received.split(" ");
 
-				if(splittedReceived[0].equalsIgnoreCase("registry")){
+				if(splittedReceived[0].equalsIgnoreCase("register")){
 					if(splittedReceived[1].equals("peer")){
 						// registry peer
 
@@ -70,15 +71,9 @@ public class kompart {
 						} else {
 							// add IP to map of peers
 							peers.put(address,new Peer(address, port, _defaultHeartBeat));
-
-							// send response to peer
 							message = "Peer registered.";
 						}
-
-						text = message.getBytes();
-						packet = new DatagramPacket(text, text.length, address, port);
-						socket.send(packet);
-					} else {
+					} else if(splittedReceived[1].equals("file")) {
 						// registry file
 
 						// Check if peer has registered before
@@ -94,51 +89,83 @@ public class kompart {
 						} else {
 							message = "Peer " + address + " is not registered.";
 						}
-						text = message.getBytes();
-						packet = new DatagramPacket(text, text.length, address, port);
-						socket.send(packet);
+					} else {
+						// unrecognized command
+						message = "Unrecognized command.";
 					}
+					// send response to peer
+					text = message.getBytes();
+					packet = new DatagramPacket(text, text.length, address, port);
+					socket.send(packet);
+					System.out.println("sending package: " + message);
 				} else if(splittedReceived[0].equalsIgnoreCase("list") && splittedReceived[1].equalsIgnoreCase("files")) {
 					// List all available files
+					Boolean hasFiles = false;
 					message = "Available files: \n";
-					byte[] originalMessage = message.getBytes();
-					
+
 					for (Map.Entry<InetAddress,Peer> peer : peers.entrySet()) {
 						if(peer.getKey() != address){
 							message += peer.getValue().GetAddress() + "\n";
 							for(Map.Entry<String,KFile> file : peer.getValue().GetFiles().entrySet()){
 								message += "\t- filename: " + file.getValue().GetFileName() + " , hash: " + file.getValue().GetHash();
+								hasFiles = true;
 							}
 						}
 					}
 
-					if(Arrays.equals(originalMessage, message.getBytes())){
+					if(!hasFiles){
 						message = "No registered files.";
 					}
 					
 					text = message.getBytes();
 					packet = new DatagramPacket(text, text.length, packet.getAddress(), packet.getPort());
 					socket.send(packet);
-				} else if(splittedReceived[0].equalsIgnoreCase("exit")){
+					System.out.println("sending package: " + message);
+				} else if(splittedReceived[0].equalsIgnoreCase("disconnect")){
 					if(peers.containsKey(address)){
 						peers.remove(address);
+						// set message to peer
+						message = "Peer removed.";
+					} else {
+						message = "Peer not registered.";
 					}
-					// send response to peer
-					message = "Peer removed.";
+					
 					text = message.getBytes();
 					packet = new DatagramPacket(text, text.length, address, port);
 					socket.send(packet);
+					System.out.println("sending package: " + message);
+				} else if(splittedReceived[0].equalsIgnoreCase("exit")){
+					if(peers.containsKey(address)){
+						peers.remove(address);
+						// set message to peer
+						message = "exit";
+					} else {
+						message = "exit";
+					}
+
+					text = message.getBytes();
+					packet = new DatagramPacket(text, text.length, address, port);
+					socket.send(packet);
+					System.out.println("sending package: " + message);
 				} else if(splittedReceived[0].equalsIgnoreCase("break")){
+					message = "exit";
+					text = message.getBytes();
+					packet = new DatagramPacket(text, text.length, address, port);
+					socket.send(packet);
+					System.out.println("sending package: " + message);
 					break;
 				} else if(splittedReceived[0].equalsIgnoreCase("heartbeat")){
 					address = packet.getAddress();
-					peers.get(address).SetHeartbeat(_defaultHeartBeat);
+					if(peers.get(address) != null){
+						peers.get(address).SetHeartbeat(_defaultHeartBeat);
+					}
 				} else {
 					// send response to peer
 					message = "Unrecognized command.";
 					text = message.getBytes();
 					packet = new DatagramPacket(text, text.length, address, port);
 					socket.send(packet);
+					System.out.println("sending package: " + message);
 				}
 			} catch (IOException e) {
 				if(timerHeartbeat <= 0){
@@ -147,9 +174,9 @@ public class kompart {
 						// decrement hearbeat;
 						int hearbeat = pair.getValue().GetHeartbeat();
 						pair.getValue().SetHeartbeat(hearbeat-1);
-						System.out.println(pair.getValue().GetAddress() + " hearbeat: " + pair.getValue().GetHeartbeat());
-						// mark peers to remove if heartbeat equals 0
-						if(pair.getValue().GetHeartbeat() == 0){
+
+						// mark peers to remove if heartbeat less than 0
+						if(pair.getValue().GetHeartbeat() <= 0){
 							peersToRemove.add(pair.getKey());
 						}
 					}
@@ -173,96 +200,83 @@ public class kompart {
 		}
 
 		socket.close();
-		System.out.println("Servidor finalizado...");
+		System.out.println("Server closed...");
 	}
 	
 	public static void RunPeer(String serverIp)  throws IOException {
-		int a = 2;
-		System.out.println("entrou no client. ip: " + serverIp);
-		if(a == 2){
-			return;
-		}
-		
 		String input = "";
 		Scanner in = new Scanner(System.in);
-		byte[] texto = new byte[32768];
-		byte[] textoSend = new byte[32768];
-		// cria um socket datagrama
+		byte[] text = new byte[32768];
+		byte[] textSend = new byte[32768];
+
+		// create socket datagram
 		DatagramSocket socket = new DatagramSocket();
 
-		System.out.println("Bem vindo ao chat.\nPara logar digite 'login nickname'\n");
+		System.out.println("Welcome to Kompart P2P.\nType 'register peer' to be registered.\n");
 		do{
 			input = in.nextLine();
-			if(!input.contains("login")){
-				System.out.println("Para logar digite 'login nickname'\n");
+			if(!input.equals("register peer")){
+				System.out.println("Type 'register peer' to be registered.\n");
 			}
-		} while(!input.contains("login"));
+		} while(!input.equals("register peer"));
 
-		// envia um pacote
-		textoSend = input.getBytes();
-		InetAddress endereco = InetAddress.getByName(serverIp);
-		DatagramPacket pacote = new DatagramPacket(textoSend, textoSend.length, endereco, 4500);
-		socket.send(pacote);
+		// send packet
+		textSend = input.getBytes();
+		InetAddress address = InetAddress.getByName(serverIp);
+		DatagramPacket packet = new DatagramPacket(textSend, textSend.length, address, 4500);
+		socket.send(packet);
 
-		// Inicia thread do Heartbeat
-		_threadHeartbeat = StartHeartbeat(endereco);
+		// Start heartbeat thread
+		_threadHeartbeat = StartHeartbeat(address, socket);
 		_threadHeartbeat.start();
+
+		// Start receive messages thread
+		_threadReceiveMessage = new ReceiveMessagesThread(socket);
+		_threadReceiveMessage.start();
 
 		while (true) {
 			try {
-				if(input.equalsIgnoreCase("break")){
-					// fecha o socket
+				if(input.equalsIgnoreCase("break") || input.equalsIgnoreCase("exit")){
+					// close socket
 					socket.close();
-					// fecha o scanner
-					in.close();
-					break;
-				}
-				
-				texto = new byte[32768];
-				// obtem a resposta
-				pacote = new DatagramPacket(texto, texto.length);
-				socket.setSoTimeout(500);
-				socket.receive(pacote);
-				
-				// mostra a resposta
-				String resposta = new String(pacote.getData(), 0, pacote.getLength());
-				System.out.println(resposta);
-				
-				if(input.equalsIgnoreCase("exit")){
-					// fecha o socket
-					socket.close();
-					// fecha o scanner
+					// close scanner
 					in.close();
 					break;
 				}
 
-				// o client fica preso na input, esperando digitar.
-				
+				Thread.sleep(1000);
+				ShowCommands();
+				System.out.print("> ");
 				input = in.nextLine();
 
-				textoSend = input.getBytes();
-				endereco = InetAddress.getByName(serverIp);
-				pacote = new DatagramPacket(textoSend, textoSend.length, endereco, 4500);
-				socket.send(pacote);
+				textSend = input.getBytes();
+				address = InetAddress.getByName(serverIp);
+				packet = new DatagramPacket(textSend, textSend.length, address, 4500);
+				socket.send(packet);
 			} catch (IOException e) {
 				
+			} catch(InterruptedException ie){
+
 			}
 		}
+
 		_threadHeartbeat.interrupt();
-		System.out.println("\nPrograma encerrado.\n");
+		_threadReceiveMessage.interrupt();
+		System.out.println("\nProgram closed.\n");
+		System.exit(0);
 	}
 
-	public static Thread StartHeartbeat(InetAddress endereco) throws IOException {
+	public static Thread StartHeartbeat(InetAddress endereco, DatagramSocket ds) throws IOException {
 		return new Thread() {
-    
+			
 			@Override
 			public void run() {
 				try{
 					String input = "";
 					int heartbeat = 5;
 
-					byte[] textoSend = new byte[32768];
-					DatagramSocket socket = new DatagramSocket();
+					byte[] textSend = new byte[32768];
+					DatagramSocket socket = ds;
 					DatagramPacket pacote;
 					
 					while(true){
@@ -270,8 +284,8 @@ public class kompart {
 						if(heartbeat <= 0){				
 							heartbeat = 5;
 							input = "heartbeat";
-							textoSend = input.getBytes();
-							pacote = new DatagramPacket(textoSend, textoSend.length, endereco, 4500);
+							textSend = input.getBytes();
+							pacote = new DatagramPacket(textSend, textSend.length, endereco, 4500);
 							socket.send(pacote);
 						}
 						Thread.sleep(1000);
@@ -338,8 +352,6 @@ public class kompart {
 		public void SetIsActive(Boolean isActive){
             this.isActive = isActive;
 		}
-
-		
     }
 
 	public static class KFile{
@@ -366,6 +378,48 @@ public class kompart {
 		public void SetHash(String hash){
 			this.hash = hash;
 		}
+	}
 
+	public static class ReceiveMessagesThread extends Thread {
+		protected DatagramSocket socket = null;
+		
+		public ReceiveMessagesThread(DatagramSocket ds) throws IOException {
+			socket = ds;
+		}
+
+		public void run(){
+			while (true) {
+				try {
+					// Thread.sleep(1000);
+					byte[] text = new byte[32768];
+
+					// get response
+					DatagramPacket packet = new DatagramPacket(text, text.length);
+					socket.setSoTimeout(500);
+					socket.receive(packet);
+
+					// show response
+					String response = new String(packet.getData(), 0, packet.getLength());
+					
+					if(response.equals("exit"))
+						break;
+
+					System.out.println("[server] " + response);
+					System.out.println("\n");
+				} catch (IOException e) {
+					
+				}
+			}
+			socket.close();
+		}
+	}
+
+	public static void ShowCommands(){
+		System.out.println("\nAvailable options:");
+		System.out.println("\tregister peer");
+		System.out.println("\tregister file <path/filename>");
+		System.out.println("\tlist files");
+		System.out.println("\tdisconnect");
+		System.out.println("\texit");
 	}
 }
