@@ -10,12 +10,12 @@
 
 **Comandos:**
 
-* no servidor *
+** no servidor **
 - registry peer
 - registry file filename
 - list files
 
-* no peer *
+** no peer **
 - get files[] | onde file é IP/filename ou IP/hash
 - get all IP
 
