@@ -1,7 +1,6 @@
 **Sistema P2P basico**
 
 - Arquitetura centralizada (servidor)
-
 - Um único programa, com 2 modos de operação (servidor e cliente)
 
 **Inicializar**
