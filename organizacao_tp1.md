@@ -29,16 +29,18 @@
 	Ao realizar o comando, o peer calcula o hash do arquivo e envia o nome completo (com caminho completo) e o hash do arquivo ao servidor.
 	
 *list files*
-	- Funcionamento: servidor informa a lista de arquivos (IP / nome / hash) em cada peer. Se não tiver arquivo registrado, exibe a mensagem "Sem arquivos registrados"
+	- Erros: 	[1] Sem arquivos registrados. Retorna mensagem "Sem arquivos registrados".
+				[2] Peer não registrado. Retorna mensagem "Peer <IP> não registrado.
+	- Funcionamento: servidor informa a lista de arquivos (IP / nome / hash) em cada peer. Se não tiver arquivo registrado, exibe a mensagem [1]. Caso o peer que esteja solicitando a lista de arquivos não esteja registrado, retorna a mensagem [2].
 
 *get files[]*
-	- Erros: [1] Peer busca arquivo de outro peer que já não está mais ativo. Retorna mensagem "Peer <IP> offline".
-			[2] Peer busca arquivo já removido. Retorna mensagem "arquivo removido ou indisponível".
+	- Erros: 	[1] Peer busca arquivo de outro peer que já não está mais ativo. Retorna mensagem "Peer <IP> offline".
+				[2] Peer busca arquivo já removido. Retorna mensagem "arquivo removido ou indisponível".
 	- Funcionamento: peer A solicita um arquivo ao peer B. Se o peer B não estiver online, servidor retorna mensagem [1]. Se o arquivo não existir mais no peer B, peer B envia a mensagem [B]. Se existir, o peer B envia os arquivos ao peer A.
 	
 *get all IP*
 	- Erros: 	[1] Peer busca arquivo de outro peer que já não está mais ativo. Retorna mensagem "Peer <IP> offline".
-			[2] Peer busca arquivo já removido. Retorna mensagem "arquivo removido ou indisponível".
+				[2] Peer busca arquivo já removido. Retorna mensagem "arquivo removido ou indisponível".
 	- Funcionamento: peer A solicita um arquivo ao peer B. Se o peer B não estiver online, servidor retorna mensagem [1]. Se o arquivo não existir mais no peer B, peer B envia a mensagem [B]. Se existir, o peer B envia todos os arquivos ao peer A.
 
 *disconnect*
