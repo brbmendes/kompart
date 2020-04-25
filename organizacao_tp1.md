@@ -12,18 +12,18 @@
 - register peer
 - register file <path/filename>
 - list files
-- get files[] | onde file é IP/filename ou IP/hash
+- get files[] filename/hash [filename/hash...]
 - get all IP
 - disconnect
 
 **Funcionamento dos comandos**
 *register peer*
-	- Erros: IP já registrado. Mensagem: "Peer <IP> já registrado"
+	- Erros: 	[1] IP já registrado. Retorna mensagem: "Peer <IP> já registrado"
 	Servidor busca a lista de peers pelo IP. Se não tiver nenhum peer com o IP solicitado, ele salva as informações do peer no server. Se tiver, retorna a mensagem [1].
 	
 *register file filename*
-	- Erros: [1] Peer não registrado. Mensagem: "Peer <IP> não registrado"
-			[2] Arquivo já registrado Mensagem: "Arquivo nomeArquivo já registrado"
+	- Erros: 	[1] Peer não registrado. Retorna mensagem: "Peer <IP> não registrado"
+				[2] Arquivo já registrado Retorna mensagem: "Arquivo nomeArquivo já registrado"
 	- Funcionamento: O servidor deve buscar o peer pelo IP. ao localizar, associa os arquivos enviados ao peer. Se não localizar peer, retorna a mensagem [1]. Se o arquivo já foi registrado, retorna a mensagem [2]. OBS: O peer digita "register file filename", mas na verdade ele manda ao servidor "register file filename hash"
 	
 	Ao realizar o comando, o peer calcula o hash do arquivo e envia o nome completo (com caminho completo) e o hash do arquivo ao servidor.
