@@ -1,3 +1,4 @@
+// abc
 import java.io.*;
 import java.net.*;
 import java.nio.file.Files;
@@ -10,10 +11,13 @@ public class kompart {
 	static final int MAX_BUFFER_SIZE = 4096;
 
 	static Thread _threadHeartbeat;
+	static Thread _threadHeartbeatServer;
 	static Thread _threadReceiveMessage;
-	static int _defaultHeartBeat = 10;
+	static int _defaultHeartBeat = 2;
 	static ArrayList<KFile> _registeredFiles  = new ArrayList<>();
 	static ArrayList<HashMap<InetAddress,KFile>> _requestedFiles = new ArrayList<>();
+	static HashMap<InetAddress,Peer> peers = new HashMap<InetAddress,Peer>();
+	static ArrayList<InetAddress> peersToRemove = new ArrayList<>();
 
 	public static void main(String[] args) throws IOException, NoSuchAlgorithmException {
 		if (args.length != 2) {
@@ -43,18 +47,18 @@ public class kompart {
 		InetAddress address;
 		int port;
 		byte[] text = new byte[MAX_BUFFER_SIZE];
-		ArrayList<InetAddress> peersToRemove = new ArrayList<>();
+		
 
 		DatagramSocket socket = new DatagramSocket(4500);
 		DatagramPacket packet;
 
-		HashMap<InetAddress, Peer> peers = new HashMap<>();
-		int timerHeartbeat = 5;
+		_threadHeartbeatServer = _threadHeartbeat = StartHeartbeatServer();
+		_threadHeartbeatServer.start();
 
 		while (true) {
 			try {
 				text = new byte[MAX_BUFFER_SIZE];
-				timerHeartbeat--;
+				
 				// receive datagram
 				packet = new DatagramPacket(text, text.length);
 				socket.setSoTimeout(500);
@@ -170,9 +174,12 @@ public class kompart {
 					System.out.println("sending package: " + message);
 					break;
 				} else if (splittedReceived[0].equalsIgnoreCase("heartbeat")) {
+					System.out.println("received heartbeat");
 					address = packet.getAddress();
-					if (peers.get(address) != null) {
-						peers.get(address).SetHeartbeat(_defaultHeartBeat);
+
+					if(peers.containsKey(address)){
+						int heartbeat = peers.get(address).GetHeartbeat();
+						peers.get(address).SetHeartbeat(heartbeat + 1);
 					}
 				} else {
 					// send response to peer
@@ -183,39 +190,12 @@ public class kompart {
 					System.out.println("sending package: " + message);
 				}
 			} catch (IOException e) {
-				if (timerHeartbeat <= 0) {
-					timerHeartbeat = 5;
-					for (Map.Entry<InetAddress, Peer> pair : peers.entrySet()) {
-						// decrement hearbeat;
-						int hearbeat = pair.getValue().GetHeartbeat();
-						pair.getValue().SetHeartbeat(hearbeat - 1);
-
-						// mark peers to remove if heartbeat less than 0
-						if (pair.getValue().GetHeartbeat() <= 0) {
-							peersToRemove.add(pair.getKey());
-						}
-					}
-
-					// remove peers
-					for (InetAddress inetAddress : peersToRemove) {
-						System.out.println("removing: " + inetAddress);
-						peers.remove(inetAddress);
-					}
-
-					// clean peer's list to remove
-					peersToRemove.clear();
-
-					// // print registered users
-					// System.out.println("Registered users:");
-					// for (Map.Entry<InetAddress, Peer> pair : peers.entrySet()) {
-					// 	System.out
-					// 			.println(pair.getValue().GetAddress() + " hearbeat: " + pair.getValue().GetHeartbeat());
-					// }
-				}
+				
 			}
 		}
 
 		socket.close();
+		_threadHeartbeatServer.interrupt();
 		System.out.println("Server closed...\n");
 	}
 
@@ -295,34 +275,71 @@ public class kompart {
 		System.exit(0);
 	}
 
-	public static Thread StartHeartbeat(InetAddress endereco, DatagramSocket ds) throws IOException {
+	public static Thread StartHeartbeat(InetAddress address, DatagramSocket ds) throws IOException {
 		return new Thread() {
 
 			@Override
 			public void run() {
 				try {
 					String input = "";
-					int heartbeat = 5;
 
-					byte[] textSend = new byte[32768];
+					byte[] text = new byte[MAX_BUFFER_SIZE];
 					DatagramSocket socket = ds;
-					DatagramPacket pacote;
+					DatagramPacket packet;
 
 					while (true) {
-						heartbeat--;
-						if (heartbeat <= 0) {
-							heartbeat = 5;
-							input = "heartbeat";
-							textSend = input.getBytes();
-							pacote = new DatagramPacket(textSend, textSend.length, endereco, 4500);
-							socket.send(pacote);
-						}
-						Thread.sleep(1000);
+						input = "heartbeat";
+						text = input.getBytes();
+						packet = new DatagramPacket(text, text.length, address, 4500);
+						socket.send(packet);
+						Thread.sleep(5000);
 					}
 				} catch (SocketException se) {
 					se.printStackTrace();
 				} catch (IOException ioe) {
 					ioe.printStackTrace();
+				} catch (InterruptedException e) {
+
+				}
+			}
+		};
+	}
+
+	public static Thread StartHeartbeatServer() {
+		return new Thread() {
+
+			@Override
+			public void run() {
+				try {
+					while (true) {
+						for (Map.Entry<InetAddress, Peer> pair : peers.entrySet()) {
+							// decrement hearbeat;
+							int hearbeat = pair.getValue().GetHeartbeat();
+							System.out.println("hb: " + hearbeat);
+							pair.getValue().SetHeartbeat(hearbeat - 1);
+	
+							// mark peers to remove if heartbeat less than 0
+							if (pair.getValue().GetHeartbeat() <= 0) {
+								peersToRemove.add(pair.getKey());
+							}
+						}
+
+						// remove peers
+						for (InetAddress inetAddress : peersToRemove) {
+							System.out.println("removing: " + inetAddress);
+							peers.remove(inetAddress);
+						}
+	
+						// clean peer's list to remove
+						peersToRemove.clear();
+	
+						// // print registered users
+						System.out.println("Registered users:");
+						for (Map.Entry<InetAddress, Peer> pair : peers.entrySet()) {
+							System.out.println(pair.getValue().GetAddress() + " hearbeat: " + pair.getValue().GetHeartbeat());
+						}
+						Thread.sleep(5000);
+					}
 				} catch (InterruptedException e) {
 
 				}
@@ -368,14 +385,12 @@ public class kompart {
 		private InetAddress addr;
 		private int port;
 		private int heartbeat;
-		private Boolean isActive;
 		private HashMap<String, KFile> files;
 
 		public Peer(InetAddress address, int port, int heartbeat) {
 			SetAddress(address);
 			SetPort(port);
 			SetHeartbeat(heartbeat);
-			SetIsActive(true);
 			files = new HashMap<>();
 		}
 
@@ -389,10 +404,6 @@ public class kompart {
 
 		public int GetHeartbeat() {
 			return this.heartbeat;
-		}
-
-		public Boolean GetIsActive() {
-			return this.isActive;
 		}
 
 		public HashMap<String, KFile> GetFiles() {
@@ -409,10 +420,6 @@ public class kompart {
 
 		public void SetHeartbeat(int heartbeat) {
 			this.heartbeat = heartbeat;
-		}
-
-		public void SetIsActive(Boolean isActive) {
-			this.isActive = isActive;
 		}
 	}
 
