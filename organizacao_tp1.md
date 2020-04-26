@@ -12,7 +12,7 @@
 - register peer
 - register file <path/filename>
 - list files
-- get files[] filename/hash [filename/hash...]
+- get files[] IP/filename ou IP/hash [IP/filename ou IP/hash...]
 - get all IP
 - disconnect
 
