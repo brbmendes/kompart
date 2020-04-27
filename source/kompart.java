@@ -1,45 +1,56 @@
 import java.io.*;
 import java.net.*;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 public class kompart {
-	static final int MAX_BUFFER_SIZE = 1024;
+	static final int MAX_BUFFER_SIZE = 4096;
 	static final int DEFAULT_PORT = 4500;
+	static final String PATH_RECEIVED_FILES = "received/";
+	static final int _defaultHeartBeat = 2;
+
+	static String receivedHash = "";
+	static String receivedFileName = "";
+	static String receivedHostIp = "";
 
 	static Thread _threadHeartbeat;
 	static Thread _threadHeartbeatServer;
 	static Thread _threadReceiveMessage;
-	static int _defaultHeartBeat = 2;
-	static ArrayList<KFile> _registeredFiles  = new ArrayList<>();
-	static ArrayList<HashMap<InetAddress,KFile>> _requestedFiles = new ArrayList<>();
-	static HashMap<InetAddress,Peer> peers = new HashMap<InetAddress,Peer>();
+	
+	static HashMap<String, KFile> _registeredFiles = new HashMap<>();
+	static ArrayList<HashMap<InetAddress, KFile>> _requestedFiles = new ArrayList<>();
+	static HashMap<InetAddress, Peer> peers = new HashMap<InetAddress, Peer>();
 	static ArrayList<InetAddress> peersToRemove = new ArrayList<>();
 
 	public static void main(String[] args) throws IOException, NoSuchAlgorithmException {
-		if (args.length != 2) {
-			System.out.println("Usage: java kompart <server IP> <type>");
-			System.out.println("Available types: s (run as server) and p (run as peer)");
+		if(args.length < 2 || args.length > 3){
+			System.out.println("To run as server: java kompart <server IP> s");
+			System.out.println("To run as Peer: java kompart <server IP> p <host IP>");
 			return;
 		}
 
-		if (!args[1].toLowerCase().equals("s") && !args[1].toLowerCase().equals("p")) {
-			System.out.println("Unrecognized type: " + args[1]);
-			System.out.println("\nUsage: java kompart <server IP> <type>");
-			System.out.println("Available types: s (run as server) and p (run as peer)");
+		if (args.length == 2 && !args[1].toLowerCase().equals("s")) {
+			System.out.println("To run as server: java kompart <server IP> s");
 			return;
 		}
 
+		if (args.length == 3 && !args[1].toLowerCase().equals("p")) {
+			System.out.println("To run as Peer: java kompart <server IP> p <host IP>");
+			return;
+		}
+		
 		if (args[1].toLowerCase().equals("s"))
 			RunServer();
 		else
-			RunPeer(args[0]);
+			RunPeer(args[0], args[2]);
 
 	}
 
+	// Main Methods
 	public static void RunServer() throws IOException {
 		String received = null;
 		String message = null;
@@ -47,8 +58,8 @@ public class kompart {
 
 		InetAddress address;
 		int port;
-		byte[] text = new byte[MAX_BUFFER_SIZE];
-		
+		byte[] byteArray = new byte[MAX_BUFFER_SIZE];
+
 		DatagramSocket socket = new DatagramSocket(DEFAULT_PORT);
 		DatagramPacket packet;
 
@@ -58,10 +69,10 @@ public class kompart {
 		while (true) {
 			try {
 				hasSend = false;
-				text = new byte[MAX_BUFFER_SIZE];
-				
+				byteArray = new byte[MAX_BUFFER_SIZE];
+
 				// receive datagram
-				packet = new DatagramPacket(text, text.length);
+				packet = new DatagramPacket(byteArray, byteArray.length);
 				socket.setSoTimeout(500);
 				socket.receive(packet);
 
@@ -72,8 +83,8 @@ public class kompart {
 
 				// store text as array
 				String[] splittedReceived = received.split(" ");
-				
-				if(splittedReceived.length == 1){
+
+				if (splittedReceived.length == 1) {
 					if (splittedReceived[0].equalsIgnoreCase("exit")) {
 						// set message to peer
 						message = "exit";
@@ -81,20 +92,18 @@ public class kompart {
 							peers.remove(address);
 						}
 						// send response to peer
-						SendPacketServer(socket, packet, text, address, port, message);
+						SendPacketServer(socket, packet, byteArray, address, port, message);
 						hasSend = true;
 					} else if (splittedReceived[0].equalsIgnoreCase("break")) {
 						// set message to peer
 						message = "exit";
-	
-						// send response to peer
-						SendPacketServer(socket, packet, text, address, port, message);
 						hasSend = true;
+						SendPacketServer(socket, packet, byteArray, address, port, message);
 						break;
 					} else if (splittedReceived[0].equalsIgnoreCase("heartbeat")) {
 						address = packet.getAddress();
-	
-						if(peers.containsKey(address)){
+
+						if (peers.containsKey(address)) {
 							int heartbeat = peers.get(address).GetHeartbeat();
 							peers.get(address).SetHeartbeat(heartbeat + 1);
 						}
@@ -107,12 +116,12 @@ public class kompart {
 						} else {
 							message = "Peer " + address + " is not registered.\n";
 						}
-	
+
 						// send response to peer
-						SendPacketServer(socket, packet, text, address, port, message);
+						SendPacketServer(socket, packet, byteArray, address, port, message);
 						hasSend = true;
 					}
-				} else if(splittedReceived.length >= 2){
+				} else if (splittedReceived.length >= 2) {
 					if (splittedReceived[0].equalsIgnoreCase("register")) {
 						if (splittedReceived[1].equals("peer")) {
 							// Check if peer has registered before
@@ -124,7 +133,7 @@ public class kompart {
 								message = "Peer " + address + " registered.\n";
 							}
 							// send response to peer
-							SendPacketServer(socket, packet, text, address, port, message);
+							SendPacketServer(socket, packet, byteArray, address, port, message);
 							hasSend = true;
 						} else if (splittedReceived[1].equals("file")) {
 							// Check if peer has registered before
@@ -141,15 +150,15 @@ public class kompart {
 								message = "Peer " + address + " is not registered.\n";
 							}
 							// send response to peer
-							SendPacketServer(socket, packet, text, address, port, message);
+							SendPacketServer(socket, packet, byteArray, address, port, message);
 							hasSend = true;
 						}
 					} else if (splittedReceived[0].equalsIgnoreCase("list")
 							&& splittedReceived[1].equalsIgnoreCase("files")) {
-						if(peers.containsKey(address)){
+						if (peers.containsKey(address)) {
 							Boolean hasFiles = false;
 							message = "Available files: \n";
-		
+
 							for (Map.Entry<InetAddress, Peer> peer : peers.entrySet()) {
 								if (peer.getKey() != address) {
 									message += peer.getValue().GetAddress() + "\n";
@@ -160,28 +169,28 @@ public class kompart {
 									}
 								}
 							}
-		
+
 							if (!hasFiles) {
 								message = "No registered files.\n";
 							}
 						} else {
 							message = "Peer " + address + " is not registered.\n";
 						}
-						
+
 						// send response to peer
-						SendPacketServer(socket, packet, text, address, port, message);
+						SendPacketServer(socket, packet, byteArray, address, port, message);
 						hasSend = true;
 					}
 				}
 
-				if(!hasSend){
+				if (!hasSend) {
 					// unrecognized command
 					message = "Unrecognized command.\n";
 					// send response to peer
-					SendPacketServer(socket, packet, text, address, port, message);
+					SendPacketServer(socket, packet, byteArray, address, port, message);
 				}
 			} catch (IOException e) {
-				
+
 			}
 		}
 
@@ -190,39 +199,40 @@ public class kompart {
 		System.out.println("Server closed...\n");
 	}
 
-	public static void RunPeer(String serverIp) throws IOException, NoSuchAlgorithmException {
+	public static void RunPeer(String serverIp, String hostIp) throws IOException, NoSuchAlgorithmException {
 		String input = "";
 		Scanner in = new Scanner(System.in);
-		byte[] text = new byte[MAX_BUFFER_SIZE];
+		byte[] byteArray = new byte[MAX_BUFFER_SIZE];
 
 		// create socket datagram
-		DatagramSocket socket = new DatagramSocket();
+		DatagramSocket socket = new DatagramSocket(DEFAULT_PORT);
 		DatagramPacket packet = null;
 		InetAddress address = InetAddress.getByName(serverIp);
 
 		System.out.println("Welcome to Kompart P2P.\nType 'register peer' to be registered.\n");
-		do{
+		do {
 			input = in.nextLine();
-			if(!input.equals("register peer")){
+			if (!input.equals("register peer")) {
 				System.out.println("Type 'register peer' to be registered.\n");
 			}
-		} while(!input.equals("register peer"));
+		} while (!input.equals("register peer"));
 
 		// send packet to server
-		text = input.getBytes();
-		SendPacketClient(socket, packet, text, address, DEFAULT_PORT, input);
+		byteArray = input.getBytes();
+		SendPacketClient(socket, packet, byteArray, address, DEFAULT_PORT, input);
 
 		// Start heartbeat thread
 		_threadHeartbeat = StartHeartbeatClient(address, socket);
 		_threadHeartbeat.start();
 
 		// Start receive messages thread
-		_threadReceiveMessage = new ReceiveMessagesThread(socket);
+		_threadReceiveMessage = new ReceiveMessagesThread(socket, packet);
 		_threadReceiveMessage.start();
+		// Start receive messages thread
 
 		while (true) {
 			try {
-				if(input.equalsIgnoreCase("break") || input.equalsIgnoreCase("exit")){
+				if (input.equalsIgnoreCase("break") || input.equalsIgnoreCase("exit")) {
 					// close socket
 					socket.close();
 					// close scanner
@@ -235,7 +245,7 @@ public class kompart {
 				input = in.nextLine();
 				System.out.println("\n");
 
-				if(input.toLowerCase().contains("register file")){
+				if (input.toLowerCase().contains("register file")) {
 					// split file name and path
 					String fullfile = input.split(" ")[2];
 					String name = fullfile.split("/")[1];
@@ -247,28 +257,24 @@ public class kompart {
 					input = "register file " + name + " " + hash;
 
 					// add to registered files
-					KFile kfile = new KFile(name, path, hash);
-					_registeredFiles.add(kfile);
+					KFile kfile = new KFile(name, path, hash, hostIp);
+					_registeredFiles.put(name, kfile);
 
-					SendPacketClient(socket, packet, text, address, DEFAULT_PORT, input);
-				} else if(input.toLowerCase().contains("get files")){ 
-					String[] arrayInput = input.split(" ");
-					String[] files = new String[arrayInput.length -2];
-					for(int i = 0 ; i < arrayInput.length ; i++){
-						if(!arrayInput[i].equals("get") && !arrayInput[i].equals("files"))
-							files[i-2] = arrayInput[i];
-					}
-					// nesse ponto, "files" tem uma lista de IP/nome ou IP/hash
-					// percorrer o FILES, e enviar o pacote para cada address que tiver na lista, um arquivo por vez
-					
-					for(int i = 0 ; i < files.length ; i++){
-						System.out.println("Requesting file[" + i + "] = " + files[i]);
-					}
-					System.out.println("\n");
-				} else if(input.toLowerCase().contains("get all")){ 
+					SendPacketClient(socket, packet, byteArray, address, DEFAULT_PORT, input);
+				} else if (input.toLowerCase().contains("get file")) {
+					String strAddress = GetFile_GetStrAddress(input);
+					String name = GetFile_GetName(input);
 
+					try {
+						address = InetAddress.getByName(strAddress);
+					} catch (UnknownHostException e1) {
+						System.out.println(e1.getMessage());
+						e1.printStackTrace();
+					}
+					input = "get file " + name;
+					SendPacketClient(socket, packet, byteArray, address, DEFAULT_PORT, input);
 				} else { // just send packet
-					SendPacketClient(socket, packet, text, address, DEFAULT_PORT, input);
+					SendPacketClient(socket, packet, byteArray, address, DEFAULT_PORT, input);
 				}
 			} catch (InterruptedException ie) {
 
@@ -282,38 +288,94 @@ public class kompart {
 	}
 
 	public static class ReceiveMessagesThread extends Thread {
-		protected DatagramSocket socket = null;
+		public DatagramSocket socket = null;
+		public DatagramPacket packet = null;
 
-		public ReceiveMessagesThread(DatagramSocket ds) throws IOException {
+		public ReceiveMessagesThread(DatagramSocket ds, DatagramPacket dp) throws IOException {
 			socket = ds;
+			packet = dp;
 		}
 
 		public void run() {
-			byte[] text = new byte[MAX_BUFFER_SIZE];
+			byte[] byteArray = new byte[MAX_BUFFER_SIZE];
 			while (true) {
 				try {
-					// Thread.sleep(1000);
-					text = new byte[MAX_BUFFER_SIZE];
-
-					// get response
-					DatagramPacket packet = new DatagramPacket(text, text.length);
-					socket.setSoTimeout(500);
+					byteArray = new byte[MAX_BUFFER_SIZE];
+					// receive datagram
+					packet = new DatagramPacket(byteArray, byteArray.length);
+					socket.setSoTimeout(1000);
 					socket.receive(packet);
-					String response = new String(packet.getData(), 0, packet.getLength());
-					
-					if (response.toLowerCase().equals("exit")){
-						System.out.println("[server] " + response);
+
+					// process received datagram
+					String received = new String(packet.getData(), 0, packet.getLength());
+
+					if (received.toLowerCase().equals("exit")) {
+						System.out.println("[server] " + received);
 						break;
-					} else if(response.toLowerCase().contains("get file")){
-						System.out.println("Received " + response);
+					} else if (received.toLowerCase().contains("get file")) {
+						try{
+							String nameOrHash = received.split(" ")[2];
+							KFile kfile = null;
+							Boolean getByName = false;
 
-						System.out.println("Sending " + response);
-					} else if(response.toLowerCase().contains("get all")){
-						System.out.println("Received " + response);
+							if(nameOrHash.contains(".")){
+								getByName = true;
+							}
 
-						System.out.println("Sending " + response);
+							if(getByName){
+								if (_registeredFiles.containsKey(nameOrHash)) {
+									kfile = _registeredFiles.get(nameOrHash);	
+								}
+							} else {
+								for(Map.Entry<String,KFile> pair : _registeredFiles.entrySet()){
+									if(pair.getValue().GetHash().equals(nameOrHash))
+										kfile = pair.getValue();
+								}
+							}
+							
+							if(kfile != null){
+								// get hash
+								String message = "Hash " + kfile.GetHash() + " Filename " + kfile.GetFileName() + " HostIp " + kfile.GetAddress(); 
+	
+								SendPacketClient(socket, packet, byteArray, packet.getAddress(), DEFAULT_PORT,message);
+	
+								Thread.sleep(500);
+	
+								String fileContent = GetFile_GetFileContent(kfile);
+								SendPacketClient(socket, packet, byteArray, packet.getAddress(), DEFAULT_PORT,
+										fileContent);
+							} else {
+								String input = "The file " + nameOrHash + " does not exists.\n";
+								SendPacketClient(socket, packet, byteArray, packet.getAddress(), DEFAULT_PORT, input);
+							}
+						} catch (InterruptedException e){
+							
+						}
+						
+					} else if (received.toLowerCase().startsWith("the")) {
+						System.out.println("[" + packet.getAddress() + "] " + received);
+					} else if(received.toLowerCase().startsWith("peer") 
+					|| received.toLowerCase().startsWith("file") 
+					|| received.toLowerCase().startsWith("available") 
+					|| received.toLowerCase().startsWith("no") 
+					|| received.toLowerCase().startsWith("unrecognized")){
+						System.out.println("[server] " + received);
+					} else if(received.toLowerCase().startsWith("hash")) {
+						receivedHash = received.split(" ")[1];
+						receivedFileName = received.split(" ")[3];
+						receivedHostIp = received.split(" ")[5];
 					} else {
-						System.out.println("[server] " + response);
+						// Is receiving a file
+						byte[] fileContent = received.getBytes();
+						
+						String calculatedHash = ConvertHashToString(GenerateHash(fileContent));
+
+						if (receivedHash.equalsIgnoreCase(calculatedHash.trim())) {
+							GetFile_SaveFile(receivedHostIp, receivedFileName, received);
+							System.out.println("File " + receivedFileName + " successfully receveid!\n");
+						} else {
+							System.out.println("File " + receivedFileName + " error. Hash doesn't match.\n");
+						}
 					}
 				} catch (IOException e) {
 
@@ -335,7 +397,7 @@ public class kompart {
 							// decrement hearbeat;
 							int hearbeat = pair.getValue().GetHeartbeat();
 							pair.getValue().SetHeartbeat(hearbeat - 1);
-	
+
 							// mark peers to remove if heartbeat less than 0
 							if (pair.getValue().GetHeartbeat() <= 0) {
 								peersToRemove.add(pair.getKey());
@@ -347,14 +409,15 @@ public class kompart {
 							System.out.println("removing: " + inetAddress);
 							peers.remove(inetAddress);
 						}
-	
+
 						// clean peer's list to remove
 						peersToRemove.clear();
-	
+
 						// // print registered users
 						// System.out.println("Registered users:");
 						// for (Map.Entry<InetAddress, Peer> pair : peers.entrySet()) {
-						// 	System.out.println(pair.getValue().GetAddress() + " hearbeat: " + pair.getValue().GetHeartbeat());
+						// System.out.println(pair.getValue().GetAddress() + " hearbeat: " +
+						// pair.getValue().GetHeartbeat());
 						// }
 						Thread.sleep(5000);
 					}
@@ -364,7 +427,7 @@ public class kompart {
 			}
 		};
 	}
-	
+
 	public static Thread StartHeartbeatClient(InetAddress address, DatagramSocket ds) throws IOException {
 		return new Thread() {
 
@@ -373,14 +436,14 @@ public class kompart {
 				try {
 					String input = "";
 
-					byte[] text = new byte[MAX_BUFFER_SIZE];
+					byte[] byteArray = new byte[MAX_BUFFER_SIZE];
 					DatagramSocket socket = ds;
 					DatagramPacket packet;
 
 					while (true) {
 						input = "heartbeat";
-						text = input.getBytes();
-						packet = new DatagramPacket(text, text.length, address, DEFAULT_PORT);
+						byteArray = input.getBytes();
+						packet = new DatagramPacket(byteArray, byteArray.length, address, DEFAULT_PORT);
 						socket.send(packet);
 						Thread.sleep(5000);
 					}
@@ -442,11 +505,13 @@ public class kompart {
 		private String name;
 		private String path;
 		private String hash;
+		private String hostIp;
 
-		public KFile(String name, String path, String hash) {
+		public KFile(String name, String path, String hash, String hostIp) {
 			SetFileName(name);
 			SetFilePath(path);
 			SetHash(hash);
+			SetAddress(hostIp);
 		}
 
 		public KFile(String name, String hash) {
@@ -457,13 +522,17 @@ public class kompart {
 		public String GetFileName() {
 			return this.name;
 		}
-		
+
 		public String GetFilePath() {
 			return this.path;
 		}
 
 		public String GetHash() {
 			return this.hash;
+		}
+
+		public String GetAddress() {
+			return this.hostIp;
 		}
 
 		public void SetFileName(String name) {
@@ -477,6 +546,10 @@ public class kompart {
 		public void SetHash(String hash) {
 			this.hash = hash;
 		}
+
+		public void SetAddress(String hostIp) {
+			this.hostIp = hostIp;
+		}
 	}
 
 	// Auxiliar Methods
@@ -485,8 +558,7 @@ public class kompart {
 		System.out.println("   register peer");
 		System.out.println("   register file <path/filename>");
 		System.out.println("   list files");
-		System.out.println("   get files[] IP/filename ou IP/hash [IP/filename ou IP/hash...]");
-		System.out.println("   get all <IP>");
+		System.out.println("   get file IP/filename ou IP/hash");
 		System.out.println("   disconnect");
 		System.out.println("   exit\n");
 	}
@@ -499,10 +571,23 @@ public class kompart {
 			md.update(b);
 			hashByte = md.digest();
 			return hashByte;
-		} catch(IOException ioe){
+		} catch (IOException ioe) {
 			System.out.println("IO Exception");
 			System.out.println(ioe.getMessage());
-		} catch(NoSuchAlgorithmException e){
+		} catch (NoSuchAlgorithmException e) {
+			System.out.println("No Such Algorithm Exception");
+			System.out.println(e.getMessage());
+		}
+		return hashByte;
+	}
+
+	private static byte[] GenerateHash(byte[] byteArray) {
+		byte[] hashByte = null;
+		try {
+			MessageDigest md = MessageDigest.getInstance("MD5");
+			md.update(byteArray);
+			hashByte = md.digest();
+		} catch (NoSuchAlgorithmException e) {
 			System.out.println("No Such Algorithm Exception");
 			System.out.println(e.getMessage());
 		}
@@ -510,37 +595,86 @@ public class kompart {
 	}
 
 	private static String ConvertHashToString(byte[] bytes) {
-		if(bytes == null)
+		if (bytes == null)
 			return "";
 
 		StringBuilder s = new StringBuilder();
 		for (int i = 0; i < bytes.length; i++) {
 			int parteAlta = ((bytes[i] >> 4) & 0xf) << 4;
 			int parteBaixa = bytes[i] & 0xf;
-			if (parteAlta == 0) s.append('0');
+			if (parteAlta == 0)
+				s.append('0');
 			s.append(Integer.toHexString(parteAlta | parteBaixa));
 		}
 		return s.toString();
 	}
 
-	private static void SendPacketServer(DatagramSocket socket, DatagramPacket packet, byte[] text, InetAddress address, int port, String message){
-		try{
-			text = message.getBytes();
-			packet = new DatagramPacket(text, text.length, address, port);
+	private static void SendPacketServer(DatagramSocket socket, DatagramPacket packet, byte[] byteArray,
+			InetAddress address, int port, String message) {
+		try {
+			byteArray = message.getBytes();
+			packet = new DatagramPacket(byteArray, byteArray.length, address, port);
 			socket.send(packet);
 			System.out.println("Sending package: " + message);
-		} catch (IOException  e){
+		} catch (IOException e) {
 			System.out.println(e.getMessage());
 		}
 	}
 
-	private static void SendPacketClient(DatagramSocket socket, DatagramPacket packet, byte[] text, InetAddress address, int port, String input){
-		try{
-			text = input.getBytes();
-			packet = new DatagramPacket(text, text.length, address, port);
+	private static void SendPacketClient(DatagramSocket socket, DatagramPacket packet, byte[] byteArray,
+			InetAddress address, int port, String input) {
+		try {
+			byteArray = input.getBytes();
+			packet = new DatagramPacket(byteArray, byteArray.length, address, port);
 			socket.send(packet);
-		} catch (IOException  e){
+		} catch (IOException e) {
 			System.out.println(e.getMessage());
 		}
+	}
+
+	private static String GetFile_GetStrAddress(String input) {
+		return input.split(" ")[2].split("/")[0];
+	}
+
+	private static String GetFile_GetName(String input) {
+		return input.split(" ")[2].split("/")[1];
+	}
+
+	private static void GetFile_SaveFile(String strAddress, String name, String content) {
+		try {
+			String fullPath = PATH_RECEIVED_FILES + strAddress + "_" + name;
+
+			File file= new File (fullPath);
+			FileWriter fileWriter;
+			if (file.exists()) {
+				fileWriter = new FileWriter(file,false);
+			}
+			else {
+				file.createNewFile();
+				fileWriter = new FileWriter(file);
+			}
+			BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
+			bufferedWriter.write(content);
+			bufferedWriter.close();
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+	}
+
+	private static String GetFile_GetFileContent(KFile kfile) {
+		String fileContent = "Erro no Buffered Reader.";
+		//String line = "";
+		try {
+			Path fullPath = Paths.get(kfile.GetFilePath(), kfile.GetFileName());
+			
+			byte[] content = Files.readAllBytes(fullPath);
+			
+			fileContent = new String(content);
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+		return fileContent;
 	}
 }
