@@ -46,7 +46,7 @@ Pode rodar como Servidor \<s\> ou como peer \<p\>
 
 	- Erros: [1] Peer busca arquivo já removido ou de peer inativo. Retorna mensagem "Arquivo não existe ou peer offline".
 	
-	- Funcionamento: peer A solicita um arquivo ao peer B. Se o peer B não estiver online, servidor retorna mensagem [1]. Se o arquivo não existir mais nos arquivos registrados do peer B, retorna a mensagem [B]. Se existir, o peer B envia os arquivos ao peer A.
+	- Funcionamento: peer A solicita um arquivo ao peer B. Se o peer B não estiver online ou se o arquivo não existir mais nos arquivos registrados do peer B, retorna a mensagem [1]. Se existir, o peer B envia os arquivos ao peer A.
 	
 <h6>disconnect</h6>
 

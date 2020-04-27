@@ -22,7 +22,7 @@ public class kompart {
 	static Thread _threadReceiveMessage;
 	
 	static HashMap<String, KFile> _registeredFiles = new HashMap<>();
-	static ArrayList<HashMap<InetAddress, KFile>> _requestedFiles = new ArrayList<>();
+	static ArrayList<String> _registeredFilesToRemove = new ArrayList<>();
 	static HashMap<InetAddress, Peer> peers = new HashMap<InetAddress, Peer>();
 	static ArrayList<InetAddress> peersToRemove = new ArrayList<>();
 
@@ -231,6 +231,7 @@ public class kompart {
 		// Start receive messages thread
 
 		while (true) {
+			address = InetAddress.getByName(serverIp);
 			try {
 				if (input.equalsIgnoreCase("break") || input.equalsIgnoreCase("exit")) {
 					// close socket
@@ -244,8 +245,10 @@ public class kompart {
 				ShowCommands();
 				input = in.nextLine();
 				System.out.println("\n");
-
-				if (input.toLowerCase().contains("register file")) {
+				if(input.equalsIgnoreCase("disconnect")){
+					_registeredFiles.clear();
+					SendPacketClient(socket, packet, byteArray, address, DEFAULT_PORT, input);
+				} else if (input.toLowerCase().contains("register file")) {
 					// split file name and path
 					String fullfile = input.split(" ")[2];
 					String name = fullfile.split("/")[1];
@@ -345,7 +348,7 @@ public class kompart {
 								SendPacketClient(socket, packet, byteArray, packet.getAddress(), DEFAULT_PORT,
 										fileContent);
 							} else {
-								String input = "The file " + nameOrHash + " does not exists.\n";
+								String input = "The file '" + nameOrHash + "' does not exists.\n";
 								SendPacketClient(socket, packet, byteArray, packet.getAddress(), DEFAULT_PORT, input);
 							}
 						} catch (InterruptedException e){
