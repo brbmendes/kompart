@@ -23,7 +23,7 @@ Pode rodar como Servidor \<s\> ou como peer \<p\>
 
 <h6>register peer</h6>
 
-	- Erros: 	[1] IP já registrado. Retorna mensagem: "Peer <IP> já registrado"
+	- Erros: [1] IP já registrado. Retorna mensagem: "Peer <IP> já registrado"
 	- Funcionamento: Servidor busca a lista de peers pelo IP. Se não tiver nenhum peer com o IP solicitado, ele salva as informações do peer no server. Se tiver, retorna a mensagem [1].
 	
 <h6>register file filename</h6>
@@ -50,7 +50,7 @@ Pode rodar como Servidor \<s\> ou como peer \<p\>
 	
 <h6>disconnect</h6>
 
-	- Erros:	[1] Peer não conectado. Retorna a mensagem "Peer não registrado".
+	- Erros: [1] Peer não conectado. Retorna a mensagem "Peer não registrado".
 	
 	- Funcionamento: Peer se desconecta do servidor. Se não estiver conectado, exibe a mensagem "Peer não registrado"
 
