@@ -1,10 +1,12 @@
 **Sistema P2P basico**
 
 - Arquitetura centralizada (servidor)
-- Um único programa, com 2 modos de operação (servidor e cliente)
+- Um único programa, com 2 modos de operação (servidor e peer)
 
 **Inicializar**
-- kompart <ip> <type>"s(server) || p(peer)"
+Pode rodar como Servidor <s> ou como peer <p>
+- kompart <server ip> s
+- kompart <server ip> p <host ip>
 *OBS: Não foi realizado nenhum tipo de controle que identifique se já existe um server ativo ou não. Supõe-se que exista somente 1 server ativo.*
 
 **Comandos:**
@@ -12,8 +14,7 @@
 - register peer
 - register file <path/filename>
 - list files
-- get files[] IP/filename ou IP/hash [IP/filename ou IP/hash...]
-- get all IP
+- get file IP/filename ou IP/hash
 - disconnect
 
 **Funcionamento dos comandos**
@@ -33,42 +34,18 @@
 				[2] Peer não registrado. Retorna mensagem "Peer <IP> não registrado.
 	- Funcionamento: servidor informa a lista de arquivos (IP / nome / hash) em cada peer. Se não tiver arquivo registrado, exibe a mensagem [1]. Caso o peer que esteja solicitando a lista de arquivos não esteja registrado, retorna a mensagem [2].
 
-*get files[]*
+*get file IP/filename ou IP/hash*
 	- Erros: 	[1] Peer busca arquivo de outro peer que já não está mais ativo. Retorna mensagem "Peer <IP> offline".
 				[2] Peer busca arquivo já removido. Retorna mensagem "arquivo removido ou indisponível".
 	- Funcionamento: peer A solicita um arquivo ao peer B. Se o peer B não estiver online, servidor retorna mensagem [1]. Se o arquivo não existir mais no peer B, peer B envia a mensagem [B]. Se existir, o peer B envia os arquivos ao peer A.
 	
-*get all IP*
-	- Erros: 	[1] Peer busca arquivo de outro peer que já não está mais ativo. Retorna mensagem "Peer <IP> offline".
-				[2] Peer busca arquivo já removido. Retorna mensagem "arquivo removido ou indisponível".
-	- Funcionamento: peer A solicita um arquivo ao peer B. Se o peer B não estiver online, servidor retorna mensagem [1]. Se o arquivo não existir mais no peer B, peer B envia a mensagem [B]. Se existir, o peer B envia todos os arquivos ao peer A.
-
 *disconnect*
 	- Erros:	[1] Peer não conectado. Retorna a mensagem "Peer não registrado".
 	- Funcionamento: Peer se desconecta do servidor. Se não estiver conectado, exibe a mensagem "Peer não registrado"
 
 
 **Hearbeat**
-- Para manter a rede de *overlay*, utilizar o mecanismo de heartbeat semelhante a atividade 7.
+- Foi criada uma thread separada para processar o recebimento do heartbeat.
 
 **Recebimento assincrono**
-Utilizar uma thread separada que recebe as mensagens do servidor, e exibe na tela ao usuário.
-
-**Estruturas para armazenamento**
-*para servidor armazenar peers*
-	hashmap<IP,peer>
-	
-	class peer
-        InetAddress addr;
-		int port;
-		int heartbeat;
-		bool active
-		hashmap<filename,kfile>
-	
-	class kfile
-		String filename;
-		string hash 
-
-*para peer armazenar a lista de recursos a serem enviados*
-arrayList<hashmap<peer destinatario,file arquivo>>
-
+- Foi criada uma thread separada para processar o recebimento das mensagens.
